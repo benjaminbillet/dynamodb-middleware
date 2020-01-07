@@ -1,4 +1,4 @@
-package fr.benjaminbillet.dynamo;
+package fr.benjaminbillet.dynamo.schema;
 
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;

@@ -10,6 +10,8 @@ import com.amazonaws.services.dynamodbv2.model.Select;
 import fr.benjaminbillet.dynamo.DynamoDocument.AttributeMap;
 import fr.benjaminbillet.dynamo.pagination.DocumentPage;
 import fr.benjaminbillet.dynamo.pagination.Pageable;
+import fr.benjaminbillet.dynamo.schema.DynamoKeyDefinition;
+import fr.benjaminbillet.dynamo.schema.DynamoSchema;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;

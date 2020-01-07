@@ -1,4 +1,4 @@
-package fr.benjaminbillet.dynamo;
+package fr.benjaminbillet.dynamo.schema;
 
 import lombok.Builder;
 import lombok.Getter;
