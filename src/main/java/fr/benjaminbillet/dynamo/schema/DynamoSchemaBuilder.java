@@ -10,6 +10,7 @@ import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.LocalSecondaryIndex;
 import com.amazonaws.services.dynamodbv2.model.Projection;
 import com.amazonaws.services.dynamodbv2.model.ProjectionType;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,6 +36,7 @@ public class DynamoSchemaBuilder {
     // TODO
   }
 
+  // TODO deal with provisionned throughput
   private CreateTableRequest createMainTable() {
     List<GlobalSecondaryIndex> globalSecondaryIndexes = schema.getSecondaryKeys().keySet().stream()
       .filter(name -> GlobalSecondaryKeyDefinition.class == schema.getSecondaryKeys().get(name).getClass())
@@ -64,6 +66,7 @@ public class DynamoSchemaBuilder {
     CreateTableRequest createTableRequest = new CreateTableRequest()
       .withAttributeDefinitions(attributeDefinitions)
       .withKeySchema(keySchema)
+      .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
       .withTableName(schema.getTableName());
 
     if (!globalSecondaryIndexes.isEmpty()) {
@@ -86,8 +89,9 @@ public class DynamoSchemaBuilder {
 
     return new GlobalSecondaryIndex()
       .withIndexName(indexName)
+      .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
       .withKeySchema(indexKeySchema)
-      .withProjection(new Projection().withProjectionType(ProjectionType.KEYS_ONLY));
+      .withProjection(new Projection().withProjectionType(ProjectionType.ALL));
   }
 
   private LocalSecondaryIndex createLocalSecondaryIndex(String indexName) {
@@ -100,6 +104,6 @@ public class DynamoSchemaBuilder {
     return new LocalSecondaryIndex()
       .withIndexName(indexName)
       .withKeySchema(indexKeySchema)
-      .withProjection(new Projection().withProjectionType(ProjectionType.KEYS_ONLY));
+      .withProjection(new Projection().withProjectionType(ProjectionType.ALL));
   }
 }
