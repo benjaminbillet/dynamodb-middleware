@@ -12,13 +12,13 @@ import static fr.benjaminbillet.dynamo.util.AttributeUtils.dateToString;
 @NoArgsConstructor
 public class GroupMember extends DynamoDocument {
   private String groupId;
-  private Long userId;
+  private String userId;
   private ZonedDateTime joinTime;
 
   public GroupMember(AttributeMap map) {
     super(map);
     this.groupId = map.getString("groupId");
-    this.userId = map.getLong("userId");
+    this.userId = map.getString("userId");
     this.joinTime = map.getDate("joinTime");
   }
 
@@ -26,14 +26,14 @@ public class GroupMember extends DynamoDocument {
     return "GROUP_MEMBER#" + groupId;
   }
 
-  public static String deriveRangeKey(Long userId) {
+  public static String deriveRangeKey(String userId) {
     return "GROUP_MEMBER#userId:" + userId;
   }
 
   public AttributeMap toAttributeMap() {
     AttributeMap map = super.toAttributeMap();
     map.put("groupId", new AttributeValue(getGroupId()));
-    map.put("userId", new AttributeValue(getUserId().toString()));
+    map.put("userId", new AttributeValue(getUserId()));
     if (getJoinTime() != null) {
       map.put("joinTime", new AttributeValue(dateToString(getJoinTime())));
     }
@@ -45,7 +45,7 @@ public class GroupMember extends DynamoDocument {
     this.groupId = groupId;
   }
 
-  public void setUserId(Long userId) {
+  public void setUserId(String userId) {
     setRangeKey(deriveRangeKey(userId));
     this.userId = userId;
   }

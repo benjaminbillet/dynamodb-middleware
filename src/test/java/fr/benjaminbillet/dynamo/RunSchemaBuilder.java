@@ -24,16 +24,20 @@ public class RunSchemaBuilder {
       .build();
     amazonDynamoDB.listTables().getTableNames().stream().forEach(System.out::println);
 
+    DynamoSchema schema = getSchema();
+    new DynamoSchemaBuilder(schema).provision(amazonDynamoDB);
+
+    amazonDynamoDB.shutdown();
+  }
+
+  public static DynamoSchema getSchema() {
     Map<String, DynamoKeyDefinition> secondaryKeys = new HashMap<>();
     secondaryKeys.put("streamIdIndex", new GlobalSecondaryKeyDefinition("streamId"));
-    DynamoSchema schema = DynamoSchema.builder()
+    secondaryKeys.put("userIdIndex", new GlobalSecondaryKeyDefinition("userId", "groupId"));
+    return DynamoSchema.builder()
       .tableName("TestSingleTable")
       .primaryKey(new PrimaryKeyDefinition(HASH_KEY, RANGE_KEY))
       .secondaryKeys(secondaryKeys)
       .build();
-
-    new DynamoSchemaBuilder(schema).provision(amazonDynamoDB);
-
-    amazonDynamoDB.shutdown();
   }
 }

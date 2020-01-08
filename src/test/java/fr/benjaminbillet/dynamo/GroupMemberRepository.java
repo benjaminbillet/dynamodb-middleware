@@ -13,7 +13,7 @@ public class GroupMemberRepository extends AbstractDynamoRepository {
     super(amazonDynamoDB, schema);
   }
 
-  public Optional<GroupMember> findById(String groupId, Long userId) {
+  public Optional<GroupMember> findById(String groupId, String userId) {
     return super.findByPrimaryKey(
       GroupMember.deriveHashKey(groupId),
       GroupMember.deriveRangeKey(userId),
@@ -24,7 +24,11 @@ public class GroupMemberRepository extends AbstractDynamoRepository {
     return super.findByHashKey(groupId, GroupMember::new);
   }
 
-  public DocumentPage<GroupMember> findByGroupId(String groupId, Pageable pageable) {
-    return super.findByHashKey(groupId, pageable, GroupMember::new);
+  public DocumentPage<GroupMember> findByUserId(String userId, Pageable pageable) {
+    return super.findBySecondaryHashKey("userIdIndex", userId, pageable, GroupMember::new);
+  }
+
+  public void save(GroupMember groupMember) {
+    super.save(groupMember);
   }
 }
