@@ -7,6 +7,7 @@ import fr.benjaminbillet.dynamo.DynamoDocument.AttributeMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -16,10 +17,14 @@ public class DocumentPage<T extends DynamoDocument> {
   private List<Map<String, AttributeValue>> results;
   private Function<AttributeMap, T> constructor;
   private Pageable pageable;
+  private String rangeKeyName;
+  private boolean hasLastEvaluatedKey;
 
-  public DocumentPage(List<Map<String, AttributeValue>> results, Pageable pageable, Function<AttributeMap, T> constructor) {
+  public DocumentPage(List<Map<String, AttributeValue>> results, String rangeKeyName, boolean hasLastEvaluatedKey, Pageable pageable, Function<AttributeMap, T> constructor) {
     this.pageable = pageable;
     this.constructor = constructor;
+    this.rangeKeyName = rangeKeyName;
+    this.hasLastEvaluatedKey = hasLastEvaluatedKey;
     if (results == null) {
       this.results = Collections.emptyList();
     } else {
@@ -27,12 +32,22 @@ public class DocumentPage<T extends DynamoDocument> {
     }
   }
 
+  public int size() {
+    return results.size();
+  }
+
   public String getLastRangeKey() {
-    return results.get(results.size()).get(pageable.getRangeKeyName()).getS();
+    if (isEmpty()) {
+      return null;
+    }
+    return results.get(results.size() - 1).get(rangeKeyName).getS();
   }
 
   public String getFirstRangeKey() {
-    return results.get(0).get(pageable.getRangeKeyName()).getS();
+    if (isEmpty()) {
+      return null;
+    }
+    return results.get(0).get(rangeKeyName).getS();
   }
 
   public boolean isEmpty() {
@@ -48,21 +63,31 @@ public class DocumentPage<T extends DynamoDocument> {
   }
 
   public Pageable nextPage() {
-    return new Pageable(pageable, getLastRangeKey(), null);
+    if (hasNext()) {
+      return new Pageable(pageable, getLastRangeKey(), null);
+    }
+    throw new NoSuchElementException();
   }
 
   public Pageable previousPage() {
-    return new Pageable(pageable, null, getFirstRangeKey());
+    if (hasPrevious()) {
+      return new Pageable(pageable, null, getFirstRangeKey());
+    }
+    throw new NoSuchElementException();
   }
 
   public boolean hasNext() {
-    return getLastRangeKey().equals(pageable.getFirst());
+    if (isEmpty()) {
+      return false;
+    }
+    // return !getLastRangeKey().equals(pageable.getFirst());
+    return hasLastEvaluatedKey;
   }
 
   public boolean hasPrevious() {
-    if (pageable.isFirstPage()) {
+    if (pageable.isFirstPage() || isEmpty()) {
       return false;
     }
-    return getFirstRangeKey().equals(pageable.getLast());
+    return !getFirstRangeKey().equals(pageable.getLast());
   }
 }

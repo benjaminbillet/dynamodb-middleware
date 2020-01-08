@@ -5,6 +5,7 @@ import fr.benjaminbillet.dynamo.DynamoDocument;
 
 import java.text.Normalizer;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 import static fr.benjaminbillet.dynamo.DynamoConstants.HASH_KEY;
@@ -49,5 +50,11 @@ public class AttributeUtils {
       return normalize(value.toLowerCase().trim());
     }
     return String.format("%s:%s", prefix, normalize(value)).toLowerCase();
+  }
+
+  public static <K, V> Map<K, V> hashmap(K key, V value) {
+    Map<K, V> map = new HashMap<>();
+    map.put(key, value);
+    return map;
   }
 }

@@ -10,6 +10,7 @@ import com.amazonaws.services.dynamodbv2.model.Select;
 import fr.benjaminbillet.dynamo.DynamoDocument.AttributeMap;
 import fr.benjaminbillet.dynamo.pagination.DocumentPage;
 import fr.benjaminbillet.dynamo.pagination.Pageable;
+import fr.benjaminbillet.dynamo.pagination.Traversal;
 import fr.benjaminbillet.dynamo.schema.DynamoKeyDefinition;
 import fr.benjaminbillet.dynamo.schema.DynamoSchema;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.function.Function;
 
 import static fr.benjaminbillet.dynamo.DynamoConstants.HASH_KEY;
 import static fr.benjaminbillet.dynamo.DynamoConstants.RANGE_KEY;
+import static fr.benjaminbillet.dynamo.util.AttributeUtils.hashmap;
 
 @Slf4j
 public abstract class AbstractDynamoRepository {
@@ -112,12 +114,9 @@ public abstract class AbstractDynamoRepository {
     return Optional.of(constructor.apply(new AttributeMap(results.get(0))));
   }
 
-  protected <T extends DynamoDocument> DocumentPage<T> findByHashKey(String hashKey, Pageable pageable, Function<AttributeMap, T> constructor) {
-    Map<String, String> attributeNames = new HashMap<>();
-    attributeNames.put("#hk", HASH_KEY);
-
-    Map<String, AttributeValue> attributeValues = new HashMap<>();
-    attributeValues.put(":hkValue", new AttributeValue(hashKey));
+  /*protected <T extends DynamoDocument> DocumentPage<T> findByHashKey(String hashKey, Pageable pageable, Function<AttributeMap, T> constructor) {
+    Map<String, String> attributeNames = hashmap("#hk", HASH_KEY);
+    Map<String, AttributeValue> attributeValues = hashmap(":hkValue", new AttributeValue(hashKey));
 
     QueryRequest queryRequest = new QueryRequest()
       .withTableName(schema.getTableName())
@@ -130,15 +129,12 @@ public abstract class AbstractDynamoRepository {
     QueryResult queryResult = amazonDynamoDB.query(queryRequest);
 
     List<Map<String, AttributeValue>> results = queryResult.getItems();
-    return new DocumentPage<>(results, pageable, constructor);
-  }
+    return new DocumentPage<>(results, RANGE_KEY, queryResult.getLastEvaluatedKey() != null, pageable, constructor);
+  }*/
 
   protected <T extends DynamoDocument> List<T> findByHashKey(String hashKey, Function<AttributeMap, T> constructor) {
-    Map<String, String> attributeNames = new HashMap<>();
-    attributeNames.put("#hk", HASH_KEY);
-
-    Map<String, AttributeValue> attributeValues = new HashMap<>();
-    attributeValues.put(":hkValue", new AttributeValue(hashKey));
+    Map<String, String> attributeNames = hashmap("#hk", HASH_KEY);
+    Map<String, AttributeValue> attributeValues = hashmap(":hkValue", new AttributeValue(hashKey));
 
     QueryRequest queryRequest = new QueryRequest()
       .withTableName(schema.getTableName())
@@ -150,59 +146,65 @@ public abstract class AbstractDynamoRepository {
     QueryResult queryResult = amazonDynamoDB.query(queryRequest);
 
     List<Map<String, AttributeValue>> results = queryResult.getItems();
-    return new DocumentPage<>(results, null, constructor).asList();
+    return new DocumentPage<>(results, RANGE_KEY, queryResult.getLastEvaluatedKey() != null, null, constructor).asList();
   }
 
   protected <T extends DynamoDocument> DocumentPage<T> findBySecondaryHashKey(String indexName, String hashKey, Pageable pageable, Function<AttributeMap, T> constructor) {
     DynamoKeyDefinition indexSchema = schema.getSecondaryKeys().get(indexName);
 
-    Map<String, String> attributeNames = new HashMap<>();
-    attributeNames.put("#hk", indexSchema.getHashKeyName());
-
-    Map<String, AttributeValue> attributeValues = new HashMap<>();
-    attributeValues.put(":hkValue", new AttributeValue(hashKey));
+    Map<String, String> attributeNames = hashmap("#hk", indexSchema.getHashKeyName());
+    Map<String, AttributeValue> attributeValues = hashmap(":hkValue", new AttributeValue(hashKey));
 
     QueryRequest queryRequest = new QueryRequest()
       .withTableName(schema.getTableName())
       .withIndexName(indexName)
-      .withKeyConditionExpression("#hk = :hkValue")
-      .withExpressionAttributeNames(attributeNames)
-      .withExpressionAttributeValues(attributeValues)
-      .withLimit(pageable.getPageSize())
       .withSelect(Select.ALL_ATTRIBUTES);
+
+    String conditionExpression = "#hk = :hkValue";
+
+    if (pageable != null) {
+      queryRequest.withLimit(pageable.getPageSize());
+
+      if (pageable.getTraversal() == Traversal.DESC) {
+        queryRequest.withScanIndexForward(false);
+      }
+
+      if (pageable.isPreviousPage()) {
+        attributeNames.put("#rk", indexSchema.getRangeKeyName());
+        attributeValues.put(":pageLimit", new AttributeValue(pageable.getLast()));
+        if (pageable.getTraversal() == Traversal.DESC) {
+          conditionExpression = "#hk = :hkValue AND #rk > :pageLimit";
+        } else {
+          conditionExpression = "#hk = :hkValue AND #rk < :pageLimit";
+        }
+      } else if (pageable.isNextPage()) {
+        attributeNames.put("#rk", indexSchema.getRangeKeyName());
+        attributeValues.put(":pageLimit", new AttributeValue(pageable.getFirst()));
+        if (pageable.getTraversal() == Traversal.DESC) {
+          conditionExpression = "#hk = :hkValue AND #rk < :pageLimit";
+        } else {
+          conditionExpression = "#hk = :hkValue AND #rk > :pageLimit";
+        }
+      }
+    }
+
+    queryRequest
+      .withKeyConditionExpression(conditionExpression)
+      .withExpressionAttributeNames(attributeNames)
+      .withExpressionAttributeValues(attributeValues);
 
     QueryResult queryResult = amazonDynamoDB.query(queryRequest);
 
     List<Map<String, AttributeValue>> results = queryResult.getItems();
-    return new DocumentPage<>(results, pageable, constructor);
+    return new DocumentPage<>(results, indexSchema.getRangeKeyName(), queryResult.getLastEvaluatedKey() != null, pageable, constructor);
   }
 
   protected <T extends DynamoDocument> List<T> findBySecondaryHashKey(String indexName, String hashKey, Function<AttributeMap, T> constructor) {
-    DynamoKeyDefinition indexSchema = schema.getSecondaryKeys().get(indexName);
-
-    Map<String, String> attributeNames = new HashMap<>();
-    attributeNames.put("#hk", indexSchema.getHashKeyName());
-
-    Map<String, AttributeValue> attributeValues = new HashMap<>();
-    attributeValues.put(":hkValue", new AttributeValue(hashKey));
-
-    QueryRequest queryRequest = new QueryRequest()
-      .withTableName(schema.getTableName())
-      .withIndexName(indexName)
-      .withKeyConditionExpression("#hk = :hkValue")
-      .withExpressionAttributeNames(attributeNames)
-      .withExpressionAttributeValues(attributeValues)
-      .withSelect(Select.ALL_PROJECTED_ATTRIBUTES);
-
-    QueryResult queryResult = amazonDynamoDB.query(queryRequest);
-
-    List<Map<String, AttributeValue>> results = queryResult.getItems();
-    return new DocumentPage<>(results, null, constructor).asList();
+    return findBySecondaryHashKey(indexName, hashKey, null, constructor).asList();
   }
 
   protected <T extends DynamoDocument> void delete(T document) {
-    Map<String, AttributeValue> keyAttributes = new HashMap<>();
-    keyAttributes.put(HASH_KEY, new AttributeValue(document.getHashKey()));
+    Map<String, AttributeValue> keyAttributes = hashmap(HASH_KEY, new AttributeValue(document.getHashKey()));
     if (schema.getPrimaryKey().getRangeKey() != null) {
       keyAttributes.put(RANGE_KEY, new AttributeValue(document.getRangeKey()));
     }
@@ -214,11 +216,8 @@ public abstract class AbstractDynamoRepository {
   }
 
   protected <T extends DynamoDocument> void deleteByHashKey(String hashKey) {
-    Map<String, String> attributeNames = new HashMap<>();
-    attributeNames.put("#hk", HASH_KEY);
-
-    Map<String, AttributeValue> attributeValues = new HashMap<>();
-    attributeValues.put(":hkValue", new AttributeValue(hashKey));
+    Map<String, String> attributeNames = hashmap("#hk", HASH_KEY);
+    Map<String, AttributeValue> attributeValues = hashmap(":hkValue", new AttributeValue(hashKey));
 
     amazonDynamoDB.deleteItem(new DeleteItemRequest()
       .withTableName(schema.getTableName())
